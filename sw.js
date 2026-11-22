@@ -1,6 +1,6 @@
 // Lets the game keep working with no internet once it has been opened once (HTTPS hosting only).
-var CACHE = 'frog-feast-v1';
-var FILES = ['./', 'index.html', 'icon.png'];
+var CACHE = 'frog-feast-v2';
+var FILES = ['./', 'index.html', 'frog-icon.png'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }));
