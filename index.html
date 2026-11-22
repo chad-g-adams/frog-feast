@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Frog Feast</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Frog Feast">
+<meta name="theme-color" content="#0b3d4a">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #0b3d4a; color: #fff;
+    font-family: -apple-system, "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+  }
+  body { position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
+  #app {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px;
+    padding-top: calc(8px + env(safe-area-inset-top));
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    padding-left: calc(8px + env(safe-area-inset-left));
+    padding-right: calc(8px + env(safe-area-inset-right));
+  }
+
+  /* ---------- top bar ---------- */
+  #top {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    flex: 0 0 auto; padding: 2px 6px 8px;
+  }
+  #stats { flex: 1 1 0; font-size: 20px; font-weight: 600; line-height: 1.35; }
+  #stats .small { opacity: .8; font-size: 16px; }
+  #lives { letter-spacing: 2px; white-space: nowrap; }
+  #goal { flex: 0 0 auto; text-align: center; }
+  #goal .label { font-size: 16px; text-transform: uppercase; letter-spacing: 2px; opacity: .8; }
+  #target {
+    display: inline-block; min-width: 130px; padding: 0 22px;
+    font-size: 60px; font-weight: 800; line-height: 1.15;
+    background: #ffd84a; color: #173a1c; border-radius: 18px;
+    box-shadow: 0 4px 0 #b99511;
+  }
+  #target.bump { animation: bump .45s; }
+  #actions { flex: 1 1 0; display: flex; justify-content: flex-end; align-items: center; }
+  button {
+    font: inherit; color: inherit; border: 0; cursor: pointer;
+    border-radius: 14px; padding: 12px 18px; font-weight: 700; font-size: 20px;
+    background: #2a6f7f; box-shadow: 0 4px 0 rgba(0,0,0,.35);
+    margin-left: 10px;
+  }
+  button:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.35); }
+  #chomp { background: #ff7a3d; font-size: 24px; padding: 14px 24px; }
+  #menuBtn { padding: 12px 14px; }
+
+  /* ---------- board ---------- */
+  #boardWrap { flex: 1 1 auto; width: 100%; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  #board {
+    position: relative; touch-action: none;
+    width: calc(var(--cell) * 6); height: calc(var(--cell) * 5);
+    background: #0e5566; border-radius: 16px;
+  }
+  .cell {
+    position: absolute; width: var(--cell); height: var(--cell);
+    padding: calc(var(--cell) * .05);
+  }
+  .pad {
+    width: 100%; height: 100%; border-radius: 18%;
+    background: #3fae5a; box-shadow: inset 0 calc(var(--cell) * -.05) 0 rgba(0,0,0,.18);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 12%;
+    font-size: calc(var(--cell) * .25); font-weight: 800; color: #0d3215;
+    white-space: nowrap;
+    transition: background-color .2s;
+  }
+  .cell.empty .pad { background: #2a8a9a; box-shadow: none; }
+  .cell.here .pad { background: #8be07c; }
+  .cell.empty.here .pad { background: #4fb3c4; }
+  .cell.wrong .pad { animation: shake .4s; background: #ff6b6b; }
+  .critter {
+    position: absolute; left: 0; top: 0; width: var(--cell); height: var(--cell);
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: calc(var(--cell) * .06);
+    font-size: calc(var(--cell) * .42); line-height: 1;
+    pointer-events: none;
+    transition: left .13s linear, top .13s linear;
+  }
+  .critter span { display: inline-block; }
+  #frog.eat span { animation: bump .3s; }
+  #frog.hurt span { animation: shake .4s; }
+  .snake { transition: left .3s ease, top .3s ease; }
+
+  #msg {
+    flex: 0 0 auto; height: 40px; line-height: 40px; margin-top: 6px;
+    font-size: 24px; font-weight: 700; text-align: center; white-space: nowrap;
+  }
+  #msg.good { color: #b7f5a0; }
+  #msg.bad { color: #ffb0a8; }
+  #msg.hint { color: #cfe9ef; font-weight: 500; font-size: 19px; }
+
+  @keyframes bump { 0% { transform: scale(1); } 45% { transform: scale(1.3); } 100% { transform: scale(1); } }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8%); }
+    40% { transform: translateX(8%); } 60% { transform: translateX(-6%); } 80% { transform: translateX(6%); }
+  }
+
+  /* ---------- overlays ---------- */
+  .overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10;
+    background: rgba(6, 36, 44, .93);
+    display: none; justify-content: center; text-align: center;
+    padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  .overlay.show { display: flex; }
+  .panel { max-width: 660px; width: 100%; margin: auto; }
+  .panel h1 { font-size: 52px; margin: 0; }
+  .panel h2 { font-size: 44px; margin: 0 0 10px; }
+  .panel p { font-size: 22px; line-height: 1.4; margin: 8px 0; }
+  .panel .big { font-size: 72px; line-height: 1.1; }
+  .row { margin: 10px 0; }
+  .row .title { font-size: 17px; text-transform: uppercase; letter-spacing: 2px; opacity: .8; margin-bottom: 6px; }
+  .choices { display: flex; justify-content: center; flex-wrap: wrap; }
+  .choices button { margin: 4px 6px; background: #1d5563; }
+  .choices button.on { background: #3fae5a; }
+  .go { background: #ff7a3d; font-size: 32px; padding: 16px 54px; margin: 8px 0 0; }
+  .how { opacity: .85; }
+
+  /* ---------- rewards ---------- */
+  #streak { margin-left: 10px; color: #ffb347; letter-spacing: 0; display: inline-block; }
+  #streak.bump { animation: bump .35s; }
+  #infoStars { font-size: 64px; line-height: 1.2; margin-bottom: 6px; }
+  #infoStars span { display: inline-block; margin: 0 4px; }
+  #infoStars .off { opacity: .22; -webkit-filter: grayscale(1); filter: grayscale(1); }
+  #infoStars .on { animation: pop .5s both; }
+  #infoUnlock { color: #ffd84a; font-weight: 700; }
+  .dance { display: inline-block; animation: dance .7s infinite; }
+  #infoRetry { background: #2a6f7f; }
+  #infoChars { margin: 4px 0 12px; }
+  #resumeBtn { background: #3fae5a; margin-right: 10px; }
+
+  /* ---------- leaderboard ---------- */
+  #nameRow { margin: 10px 0 4px; }
+  #nameInput {
+    font: inherit; font-size: 24px; font-weight: 700; text-align: center;
+    width: 250px; padding: 11px 14px; border: 0; border-radius: 14px;
+    background: #fff; color: #173a1c;
+    -webkit-user-select: text; user-select: text; -webkit-appearance: none;
+  }
+  #nameSave { background: #3fae5a; }
+  #nameQuick { margin-top: 8px; }
+  #nameQuick button { font-size: 18px; padding: 9px 14px; }
+  .board { max-width: 440px; margin: 14px auto 0; text-align: left; font-size: 20px; }
+  .board .r { display: flex; align-items: center; padding: 3px 12px; border-radius: 9px; }
+  .board .r.me { background: #ffd84a; color: #173a1c; font-weight: 700; }
+  .board .rank { flex: 0 0 44px; }
+  .board .nm { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board .lv { flex: 0 0 auto; opacity: .7; font-size: 15px; margin: 0 14px; }
+  .board .sc { flex: 0 0 auto; font-weight: 700; }
+  .board .none { text-align: center; opacity: .8; }
+  #boardBtn { margin: 12px 0 0; font-size: 18px; }
+  #topBoard { margin-top: 12px; }
+
+  .chars button { padding: 8px 10px; min-width: 76px; }
+  .chars .ch { display: block; font-size: 38px; line-height: 1.15; }
+  .chars .cost { display: block; font-size: 14px; font-weight: 600; opacity: .9; }
+  .chars .locked .ch { opacity: .3; -webkit-filter: grayscale(1); filter: grayscale(1); }
+  #confetti { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; pointer-events: none; z-index: 20; }
+  .bit { position: absolute; top: -24px; width: 12px; height: 18px; border-radius: 3px; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+  @keyframes pop { 0% { transform: scale(0) rotate(-40deg); } 70% { transform: scale(1.35); } 100% { transform: scale(1); } }
+  @keyframes dance {
+    0%, 50%, 100% { transform: translateY(0) rotate(-12deg); }
+    25%, 75% { transform: translateY(-16%) rotate(12deg); }
+  }
+
+  @media (max-width: 700px), (max-height: 520px) {
+    #target { font-size: 38px; min-width: 84px; padding: 0 12px; }
+    #stats { font-size: 15px; } #stats .small { font-size: 13px; }
+    #goal .label { font-size: 12px; }
+    button { font-size: 15px; padding: 9px 11px; margin-left: 6px; }
+    #chomp { font-size: 17px; padding: 10px 14px; }
+    #msg { font-size: 17px; height: 30px; line-height: 30px; }
+    #msg.hint { font-size: 14px; }
+    .panel h1 { font-size: 44px; } .panel h2 { font-size: 32px; } .panel p { font-size: 18px; }
+    .panel .big { font-size: 54px; }
+    #infoStars { font-size: 44px; }
+    .chars .ch { font-size: 28px; } .chars button { min-width: 58px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div id="stats">
+      <div><span id="lives"></span><span id="streak"></span></div>
+      <div class="small">Level <span id="level">1</span> &nbsp;·&nbsp; Score <span id="score">0</span> &nbsp;·&nbsp; ⭐ <span id="stars">0</span></div>
+    </div>
+    <div id="goal">
+      <div class="label">Eat everything that equals</div>
+      <div id="target">–</div>
+    </div>
+    <div id="actions">
+      <button id="chomp">Chomp!</button>
+      <button id="menuBtn" aria-label="Menu">☰</button>
+    </div>
+  </div>
+  <div id="boardWrap"><div id="board"></div></div>
+  <div id="msg" class="hint"></div>
+</div>
+
+<!-- start / settings -->
+<div class="overlay show" id="startScreen">
+  <div class="panel">
+    <h1><span id="startEmoji">🐸</span> Frog Feast</h1>
+    <p class="how">Eat every lily pad that equals the number at the top.<br>Tap a pad to hop there, then tap your animal (or Chomp!) to eat.</p>
+    <div class="row">
+      <div class="title">Play as<span id="starLine"></span></div>
+      <div class="choices chars" id="charChoices"></div>
+    </div>
+    <div class="row">
+      <div class="title">Times tables</div>
+      <div class="choices" id="tableChoices">
+        <button data-n="5">Up to 5</button>
+        <button data-n="10">Up to 10</button>
+        <button data-n="12">Up to 12</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="title">Snakes</div>
+      <div class="choices" id="snakeChoices">
+        <button data-s="0">No snakes</button>
+        <button data-s="1">Snakes 🐍</button>
+      </div>
+    </div>
+    <button class="go" id="resumeBtn">Continue</button><button class="go" id="playBtn">Play</button>
+    <div class="board" id="topBoard"></div>
+    <div><button id="boardBtn">🏆 Leaderboard</button></div>
+  </div>
+</div>
+
+<!-- level complete / game over -->
+<div class="overlay" id="infoScreen">
+  <div class="panel">
+    <div class="big"><span id="infoEmoji">🎉</span></div>
+    <div id="infoStars"></div>
+    <h2 id="infoTitle"></h2>
+    <p id="infoText"></p>
+    <p id="infoUnlock"></p>
+    <div class="choices chars" id="infoChars"></div>
+    <div id="nameRow">
+      <input id="nameInput" type="text" maxlength="12" placeholder="Your name" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false">
+      <button id="nameSave">Save</button>
+      <div class="choices" id="nameQuick"></div>
+    </div>
+    <button class="go" id="infoBtn">Next</button>
+    <div style="margin-top:20px">
+      <button id="infoRetry" style="margin:0 6px">Try for 3 stars</button>
+      <button id="infoMenu" style="margin:0 6px">Menu</button>
+    </div>
+    <div class="board" id="infoBoard"></div>
+  </div>
+</div>
+
+<!-- leaderboard (opened from the menu) -->
+<div class="overlay" id="boardScreen">
+  <div class="panel">
+    <h2>🏆 Leaderboard</h2>
+    <div class="board" id="menuBoard"></div>
+    <button class="go" id="boardClose" style="font-size:24px;padding:14px 40px;margin-top:22px">Close</button>
+  </div>
+</div>
+
+<div id="confetti"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var COLS = 6, ROWS = 5, MAX_LIVES = 3;
+  var $ = function (id) { return document.getElementById(id); };
+  var boardEl = $('board'), msgEl = $('msg'), targetEl = $('target');
+
+  // ---------- saved settings ----------
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem('ff_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem('ff_' + k, JSON.stringify(v)); } catch (e) {} }
+  };
+  var settings = { maxFactor: store.get('maxFactor', 10), snakes: store.get('snakes', 0), who: 0 };
+
+  // characters unlock as stars are earned within one game; every new game starts again from the frog
+  var CHARS = [
+    { ch: '🐸', name: 'Frog', cost: 0 },
+    { ch: '🐢', name: 'Turtle', cost: 4 },
+    { ch: '🦆', name: 'Duck', cost: 8 },
+    { ch: '🐙', name: 'Octopus', cost: 13 },
+    { ch: '🦖', name: 'Dino', cost: 19 },
+    { ch: '🦄', name: 'Unicorn', cost: 26 },
+    { ch: '🐲', name: 'Dragon', cost: 34 }
+  ];
+  var totalStars = 0;
+  try { localStorage.removeItem('ff_stars'); localStorage.removeItem('ff_who'); } catch (e) {}   // left over from older versions
+  function me() { return CHARS[settings.who]; }
+  function setChar(n) {                 // takes effect straight away, even mid-game
+    if (!CHARS[n] || CHARS[n].cost > totalStars) return;
+    settings.who = n;
+    if (frogEl) frogEl.firstChild.textContent = me().ch;
+  }
+  function fillChars(box, openOnly) {
+    box.innerHTML = '';
+    CHARS.forEach(function (c, n) {
+      var open = c.cost <= totalStars;
+      if (openOnly && !open) return;
+      var b = document.createElement('button');
+      b.setAttribute('data-c', n);
+      b.className = (n === settings.who ? 'on' : '') + (open ? '' : ' locked');
+      var ch = document.createElement('span'); ch.className = 'ch'; ch.textContent = c.ch;
+      var cost = document.createElement('span'); cost.className = 'cost';
+      cost.textContent = open ? c.name : '🔒 ' + c.cost + ' ⭐';
+      b.appendChild(ch); b.appendChild(cost); box.appendChild(b);
+    });
+  }
+  function charTap(box, after) {
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('button') : null;
+      if (!b) return;
+      setChar(+b.getAttribute('data-c')); after();
+    });
+  }
+
+  // ---------- state ----------
+  var S = {
+    active: false, level: 1, score: 0, lives: MAX_LIVES, target: 0, lastTarget: 0,
+    cells: [], frog: { x: 2, y: 2 }, snakes: [], left: 0,
+    streak: 0, mistakes: 0, levelStartScore: 0, credited: 0, inGame: false, used: {}
+  };
+  var cellEls = [], frogEl = null, walkTimer = null, snakeTimer = null, msgTimer = null;
+
+  // ---------- helpers ----------
+  function rnd(n) { return Math.floor(Math.random() * n); }
+  function pick(a) { return a[rnd(a.length)]; }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) { var j = rnd(i + 1); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  function idx(x, y) { return y * COLS + x; }
+
+  // ---------- sound ----------
+  var audio = null;
+  function unlockAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) { try { audio = new AC(); } catch (e) { audio = null; } }
+  }
+  function tone(freq, start, dur, type) {
+    if (!audio) return;
+    try {
+      var t = audio.currentTime + start;
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.type = type || 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.18, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(audio.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+    } catch (e) {}
+  }
+  var sfx = {
+    good: function (streak) {            // pitch climbs with the streak
+      var f = 523 * Math.pow(2, Math.min((streak || 1) - 1, 10) * 2 / 12);
+      tone(f, 0, .12); tone(f * 1.335, .09, .16);
+    },
+    bad: function () { tone(200, 0, .25, 'square'); },
+    hop: function () { tone(420, 0, .05, 'triangle'); },
+    win: function () { tone(523, 0, .14); tone(659, .12, .14); tone(784, .24, .14); tone(1047, .36, .3); },
+    over: function () { tone(392, 0, .2); tone(330, .2, .2); tone(262, .4, .4); }
+  };
+
+  // ---------- level generation ----------
+  function pairsFor(t, n) {
+    var out = [];
+    for (var a = 1; a <= n; a++) {
+      if (t % a === 0 && t / a <= n) out.push([a, t / a]);
+    }
+    return out;
+  }
+  // Prompts for a table size, best ones first:
+  //   main  - numbers with at least two different "real" facts (no x1), e.g. 12 = 3x4, 4x3, 2x6, 6x2
+  //   extra - everything else in the table (squares like 9, and x1-only numbers like 7), used once main runs out
+  function targetLists(n) {
+    var main = [], extra = [];
+    for (var t = 2; t <= n * n; t++) {
+      var all = pairsFor(t, n);
+      if (!all.length) continue;
+      var real = all.filter(function (p) { return p[0] > 1 && p[1] > 1; });
+      (real.length >= 2 ? main : extra).push(t);
+    }
+    return { main: main, extra: extra };
+  }
+  // Never repeats a prompt within a game until every possible prompt has been used.
+  function chooseTarget(n) {
+    var lists = targetLists(n);
+    var fresh = function (list) { return list.filter(function (t) { return !S.used[t]; }); };
+    // start with smaller numbers, open up the whole range as levels go on
+    var c = fresh(lists.main.slice(0, 4 + S.level * 3));
+    if (!c.length) c = fresh(lists.main);
+    if (!c.length) c = fresh(lists.extra);
+    if (!c.length) {                      // everything has been used: start over, just avoid an immediate repeat
+      S.used = {};
+      c = lists.main.concat(lists.extra).filter(function (t) { return t !== S.lastTarget; });
+    }
+    return pick(c);
+  }
+  function makeLevel(sameTarget) {
+    var n = settings.maxFactor;
+    var t = sameTarget || chooseTarget(n);
+    S.used[t] = true;
+    S.target = S.lastTarget = t;
+
+    var good = shuffle(pairsFor(t, n));
+    var want = Math.min(5 + rnd(4), good.length * 3);   // don't fill the pond with copies of a single fact
+    var exprs = [];
+    for (var i = 0; i < want; i++) exprs.push(good[i % good.length].slice());
+
+    var total = COLS * ROWS, guard = 0;
+    while (exprs.length < total && guard++ < 5000) {
+      var a, b;
+      if (Math.random() < 0.55) {            // near miss: nudge one factor of a right answer
+        var p = pick(good); a = p[0]; b = p[1];
+        var d = Math.random() < 0.5 ? -1 : 1;
+        if (Math.random() < 0.5) a += d; else b += d;
+      } else { a = 1 + rnd(n); b = 1 + rnd(n); }
+      if (a < 1 || b < 1 || a > n || b > n || a * b === t) continue;
+      exprs.push([a, b]);
+    }
+    shuffle(exprs);
+    S.cells = exprs.map(function (e) { return { a: e[0], b: e[1], eaten: false }; });
+    S.left = want;
+  }
+
+  // ---------- rendering ----------
+  function buildBoard() {
+    boardEl.innerHTML = '';
+    cellEls = [];
+    for (var y = 0; y < ROWS; y++) for (var x = 0; x < COLS; x++) {
+      var c = document.createElement('div');
+      c.className = 'cell';
+      c.style.left = 'calc(var(--cell) * ' + x + ')';
+      c.style.top = 'calc(var(--cell) * ' + y + ')';
+      var p = document.createElement('div'); p.className = 'pad';
+      c.appendChild(p); boardEl.appendChild(c); cellEls.push(c);
+    }
+    frogEl = makeCritter(me().ch); frogEl.id = 'frog';
+  }
+  function makeCritter(ch) {
+    var el = document.createElement('div'); el.className = 'critter';
+    var s = document.createElement('span'); s.textContent = ch;
+    el.appendChild(s); boardEl.appendChild(el); return el;
+  }
+  function place(el, x, y) {
+    el.style.left = 'calc(var(--cell) * ' + x + ')';
+    el.style.top = 'calc(var(--cell) * ' + y + ')';
+  }
+  function renderCells() {
+    for (var i = 0; i < S.cells.length; i++) {
+      var c = S.cells[i], el = cellEls[i];
+      el.className = 'cell' + (c.eaten ? ' empty' : '') + (i === idx(S.frog.x, S.frog.y) ? ' here' : '');
+      el.firstChild.textContent = c.eaten ? '' : c.a + ' × ' + c.b;
+    }
+  }
+  function renderHud() {
+    var h = '';
+    for (var i = 0; i < MAX_LIVES; i++) h += i < S.lives ? '❤️' : '🤍';
+    $('lives').textContent = h;
+    $('streak').textContent = S.streak >= 2 ? '🔥 ' + S.streak + ' in a row' : '';
+    $('level').textContent = S.level;
+    $('score').textContent = S.score;
+    $('stars').textContent = totalStars;
+    targetEl.textContent = S.target || '–';
+  }
+  function say(text, cls, sticky) {
+    clearTimeout(msgTimer);
+    msgEl.textContent = text; msgEl.className = cls || '';
+    if (!sticky) msgTimer = setTimeout(hint, 2600);
+  }
+  function hint() {
+    clearTimeout(msgTimer);
+    msgEl.className = 'hint';
+    msgEl.textContent = S.active ? S.left + ' left to find' : '';
+  }
+  function flash(el, cls, ms) {
+    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+    setTimeout(function () { el.classList.remove(cls); }, ms || 450);
+  }
+  function layout() {
+    var wrap = $('boardWrap');
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    var cell = Math.floor(Math.min(w / COLS, h / ROWS));
+    if (cell < 20) cell = 20;
+    document.documentElement.style.setProperty('--cell', cell + 'px');
+  }
+
+  // ---------- game flow ----------
+  function newGame() {
+    S.level = 1; S.score = 0; S.lives = MAX_LIVES; S.lastTarget = 0; S.streak = 0; S.inGame = true;
+    totalStars = 0; settings.who = 0;      // stars and unlocked characters do not carry over
+    S.used = {};
+    frogEl.firstChild.textContent = me().ch;
+    startLevel();
+  }
+  function startLevel(replay) {
+    stopTimers();
+    if (replay) {                       // same number again, score rolled back, going for more stars
+      S.score = S.levelStartScore; S.streak = 0;
+      makeLevel(S.target);
+    } else {
+      S.levelStartScore = S.score; S.credited = 0;
+      makeLevel();
+    }
+    S.mistakes = 0;
+    S.frog.x = 2; S.frog.y = 2;
+    S.snakes.forEach(function (s) { boardEl.removeChild(s.el); });
+    S.snakes = [];
+    if (settings.snakes) {
+      var count = S.level >= 6 ? 2 : 1;
+      var corners = [[COLS - 1, ROWS - 1], [0, 0]];
+      for (var i = 0; i < count; i++) {
+        var el = makeCritter('🐍'); el.classList.add('snake');
+        var s = { x: corners[i][0], y: corners[i][1], el: el };
+        place(el, s.x, s.y); S.snakes.push(s);
+      }
+      startSnakeTimer();
+    }
+    place(frogEl, S.frog.x, S.frog.y);
+    S.active = true;
+    renderCells(); renderHud(); hint();
+    flash(targetEl, 'bump');
+    layout();
+  }
+  function startSnakeTimer() {
+    clearInterval(snakeTimer);
+    if (S.snakes.length) snakeTimer = setInterval(moveSnakes, Math.max(650, 1500 - S.level * 70));
+  }
+  function stopTimers() {
+    clearTimeout(walkTimer); walkTimer = null;
+    clearInterval(snakeTimer); snakeTimer = null;
+  }
+  function showInfo(emoji, title, text, btn, action, extra) {
+    extra = extra || {};
+    var hide = function () { $('infoScreen').classList.remove('show'); };
+    $('infoEmoji').textContent = emoji;
+    $('infoEmoji').className = extra.dance ? 'dance' : '';
+    $('infoTitle').textContent = title;
+    $('infoText').textContent = text;
+    $('infoUnlock').textContent = extra.unlock || '';
+    $('infoUnlock').style.display = extra.unlock ? '' : 'none';
+    setupNameRow(!!extra.ask);
+    $('infoBoard').style.display = extra.board ? '' : 'none';
+    if (extra.board) fillBoard($('infoBoard'), null);
+    infoPick = !!extra.pick;
+    renderInfoChars();
+    var st = $('infoStars');
+    st.innerHTML = '';
+    st.style.display = extra.stars ? '' : 'none';
+    for (var i = 0; extra.stars && i < 3; i++) {
+      var sp = document.createElement('span');
+      sp.textContent = '⭐';
+      if (i < extra.stars) { sp.className = 'on'; sp.style.animationDelay = (0.25 + i * 0.3) + 's'; }
+      else sp.className = 'off';
+      st.appendChild(sp);
+    }
+    $('infoRetry').style.display = extra.retry ? '' : 'none';
+    $('infoRetry').onclick = extra.retry ? function () { hide(); extra.retry(); } : null;
+    $('infoBtn').textContent = btn;
+    $('infoBtn').onclick = function () { commitName(); hide(); action(); };
+    $('infoScreen').classList.add('show');
+  }
+  var infoPick = false;
+  function renderInfoChars() {           // character switcher on the level-complete screen
+    var box = $('infoChars');
+    var open = CHARS.filter(function (c) { return c.cost <= totalStars; }).length;
+    if (!infoPick || open < 2) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    fillChars(box, true);
+    $('infoEmoji').textContent = me().ch;
+  }
+  // ---------- leaderboard (top 10, saved on this device) ----------
+  var BOARD_SIZE = 10, pending = null, lastSaved = 0;
+  function getBoard() { var b = store.get('board', []); return Array.isArray(b) ? b : []; }
+  function qualifies(score) {
+    var b = getBoard();
+    return score > 0 && (b.length < BOARD_SIZE || score > b[b.length - 1].score);
+  }
+  function niceDate(t) {
+    var d = new Date(t);
+    if (!t || isNaN(d)) return '';
+    try { return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
+    catch (e) { return d.toDateString(); }
+  }
+  // opts.top: show only that many rows, with the date instead of the level, and nothing when empty
+  function fillBoard(el, mark, opts) {
+    var b = getBoard(), top = opts && opts.top;
+    el.innerHTML = '';
+    if (top) { b = b.slice(0, top); if (!b.length) return; }
+    if (!b.length) {
+      var none = document.createElement('div'); none.className = 'none';
+      none.textContent = 'No scores yet. Be the first!'; el.appendChild(none); return;
+    }
+    b.forEach(function (e, i) {
+      var r = document.createElement('div'); r.className = 'r' + (mark && e.t === mark ? ' me' : '');
+      [['rank', i < 3 ? ['🥇', '🥈', '🥉'][i] : (i + 1) + '.'], ['nm', e.name], ['lv', top ? niceDate(e.t) : 'Level ' + e.level], ['sc', e.score]]
+        .forEach(function (c) { var d = document.createElement('span'); d.className = c[0]; d.textContent = c[1]; r.appendChild(d); });
+      el.appendChild(r);
+    });
+  }
+  function saveName(name) {
+    name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 12);
+    if (!pending || !name) return;
+    var b = getBoard(), e = { name: name, score: pending.score, level: pending.level, t: Date.now() };
+    b.push(e);
+    b.sort(function (x, y) { return y.score - x.score || x.t - y.t; });
+    store.set('board', b.slice(0, BOARD_SIZE));
+    pending = null; lastSaved = e.t;
+    $('nameInput').blur();
+    $('nameRow').style.display = 'none';
+    $('infoText').textContent = 'Saved! Nice one, ' + name + '.';
+    fillBoard($('infoBoard'), lastSaved);
+  }
+  function commitName() {                // leaving the screen with a name typed in still saves it
+    if (pending) saveName($('nameInput').value);
+    pending = null;
+  }
+  function setupNameRow(ask) {
+    $('nameRow').style.display = ask ? '' : 'none';
+    $('nameInput').value = '';
+    var quick = $('nameQuick'), seen = {};
+    quick.innerHTML = '';
+    if (!ask) return;
+    getBoard().slice().sort(function (x, y) { return y.t - x.t; }).forEach(function (e) {   // names used before, newest first
+      var key = e.name.toLowerCase();
+      if (seen[key] || quick.children.length >= 4) return;
+      seen[key] = 1;
+      var b = document.createElement('button'); b.textContent = e.name;
+      b.onclick = function () { saveName(e.name); };
+      quick.appendChild(b);
+    });
+  }
+  $('nameSave').addEventListener('click', function () { saveName($('nameInput').value); });
+  $('nameInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); saveName(this.value); } });
+  $('boardBtn').addEventListener('click', function () { fillBoard($('menuBoard'), lastSaved); $('boardScreen').classList.add('show'); });
+  $('boardClose').addEventListener('click', function () { $('boardScreen').classList.remove('show'); });
+
+  function confetti() {
+    var box = $('confetti'), colors = ['#ffd84a', '#ff7a3d', '#8be07c', '#6ec6ff', '#ff8fd0', '#ffffff'];
+    for (var i = 0; i < 80; i++) {
+      var b = document.createElement('div');
+      b.className = 'bit';
+      b.style.left = (Math.random() * 100) + '%';
+      b.style.background = pick(colors);
+      b.style.width = (8 + rnd(8)) + 'px';
+      b.style.animationDuration = (1.6 + Math.random() * 1.8) + 's';
+      b.style.animationDelay = (Math.random() * 0.7) + 's';
+      box.appendChild(b);
+    }
+    setTimeout(function () { box.innerHTML = ''; }, 4500);
+  }
+  function levelDone() {
+    S.active = false; stopTimers();
+    var stars = S.mistakes === 0 ? 3 : S.mistakes === 1 ? 2 : 1;
+    var bonus = stars === 3 ? 100 : 50;
+    S.score += bonus; sfx.win();
+
+    // only stars beyond what this level already earned count, so replays can't be farmed
+    var gain = Math.max(0, stars - S.credited), before = totalStars;
+    S.credited = Math.max(S.credited, stars);
+    totalStars += gain; renderHud();
+    var fresh = CHARS.filter(function (c) { return c.cost > before && c.cost <= totalStars; });
+    var unlock = fresh.length ? 'New friend unlocked: ' + fresh.map(function (c) { return c.ch + ' ' + c.name; }).join(', ') + '! Tap it to play as it.' : '';
+    var next = CHARS.filter(function (c) { return c.cost > totalStars; })[0];
+    if (!unlock && next) unlock = (next.cost - totalStars) + ' more ⭐ to unlock ' + next.ch;
+
+    var t = S.target, done = S.level;
+    var text = (stars === 3 ? 'Perfect! No mistakes. ' : 'You found everything that equals ' + t + '. ') + '+' + bonus + ' bonus!';
+    setTimeout(function () {
+      confetti();
+      showInfo(me().ch, 'Level ' + done + ' complete!', text, 'Next level',
+        function () { S.level++; startLevel(); },
+        { stars: stars, dance: true, pick: true, unlock: unlock, retry: stars < 3 ? function () { startLevel(true); } : null });
+    }, 600);
+  }
+  function gameOver() {
+    S.active = false; S.inGame = false; stopTimers(); sfx.over();
+    var best = store.get('best', 0), isBest = S.score > best;
+    if (isBest) store.set('best', S.score);
+    var ask = qualifies(S.score), face = me().ch;
+    pending = ask ? { score: S.score, level: S.level } : null;
+    totalStars = 0; settings.who = 0;      // the menu goes back to showing only the frog unlocked
+    setTimeout(function () {
+      showInfo(isBest ? '🏆' : face, isBest ? 'New best score!' : 'Game over',
+        'You scored ' + S.score + ' and reached level ' + S.level + '.' + (ask ? ' Enter your name for the leaderboard!' : ''),
+        'Play again', newGame, { board: true, ask: ask });
+    }, 900);
+  }
+  function loseLife() {
+    S.lives--; S.streak = 0; S.mistakes++; renderHud(); sfx.bad(); flash(frogEl, 'hurt');
+    if (S.lives <= 0) { gameOver(); return true; }
+    return false;
+  }
+
+  // ---------- frog ----------
+  function stepFrog(dx, dy) {
+    if (!S.active) return false;
+    var nx = S.frog.x + dx, ny = S.frog.y + dy;
+    if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) return false;
+    S.frog.x = nx; S.frog.y = ny;
+    place(frogEl, nx, ny); renderCells(); sfx.hop();
+    checkSnakes();
+    return true;
+  }
+  function walkTo(tx, ty) {
+    clearTimeout(walkTimer);
+    (function go() {
+      if (!S.active) return;
+      var dx = tx - S.frog.x, dy = ty - S.frog.y;
+      if (!dx && !dy) return;
+      if (dx) stepFrog(dx > 0 ? 1 : -1, 0); else stepFrog(0, dy > 0 ? 1 : -1);
+      walkTimer = setTimeout(go, 150);
+    })();
+  }
+  function chomp() {
+    if (!S.active) return;
+    clearTimeout(walkTimer);
+    var i = idx(S.frog.x, S.frog.y), c = S.cells[i];
+    if (c.eaten) return;
+    c.eaten = true;
+    if (c.a * c.b === S.target) {
+      S.streak++;
+      var mult = Math.min(S.streak, 5), pts = 10 * mult;   // streaks multiply points, up to x5
+      S.score += pts; S.left--;
+      sfx.good(S.streak); flash(frogEl, 'eat', 300);
+      renderCells(); renderHud();
+      if (S.streak >= 2) flash($('streak'), 'bump', 350);
+      say('Yum! ' + c.a + ' × ' + c.b + ' = ' + S.target + (mult > 1 ? '   🔥 ×' + mult + ' = +' + pts : ''), 'good');
+      if (S.left === 0) levelDone();
+    } else {
+      renderCells();
+      flash(cellEls[i], 'wrong');
+      say('Oops! ' + c.a + ' × ' + c.b + ' = ' + (c.a * c.b) + ', not ' + S.target, 'bad', true);
+      msgTimer = setTimeout(hint, 4500);
+      loseLife();
+    }
+  }
+
+  // ---------- snakes ----------
+  function moveSnakes() {
+    if (!S.active) return;
+    S.snakes.forEach(function (s) {
+      var opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(function (d) {
+        var x = s.x + d[0], y = s.y + d[1];
+        return x >= 0 && y >= 0 && x < COLS && y < ROWS;
+      });
+      var d;
+      if (Math.random() < 0.5) {       // drift toward the frog half the time
+        opts.sort(function (p, q) {
+          return (Math.abs(s.x + p[0] - S.frog.x) + Math.abs(s.y + p[1] - S.frog.y)) -
+                 (Math.abs(s.x + q[0] - S.frog.x) + Math.abs(s.y + q[1] - S.frog.y));
+        });
+        d = opts[0];
+      } else d = pick(opts);
+      s.x += d[0]; s.y += d[1];
+      place(s.el, s.x, s.y);
+    });
+    checkSnakes();
+  }
+  function checkSnakes() {
+    if (!S.active) return;
+    for (var i = 0; i < S.snakes.length; i++) {
+      var s = S.snakes[i];
+      if (s.x === S.frog.x && s.y === S.frog.y) {
+        clearTimeout(walkTimer);
+        say('Yikes! A snake got you!', 'bad');
+        // send the snake to the corner farthest from the frog
+        s.x = S.frog.x < COLS / 2 ? COLS - 1 : 0;
+        s.y = S.frog.y < ROWS / 2 ? ROWS - 1 : 0;
+        place(s.el, s.x, s.y);
+        if (loseLife()) return;
+      }
+    }
+  }
+
+  // ---------- input ----------
+  var down = null;
+  function cellAt(px, py) {
+    var r = boardEl.getBoundingClientRect();
+    var x = Math.floor((px - r.left) / (r.width / COLS)), y = Math.floor((py - r.top) / (r.height / ROWS));
+    if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return null;
+    return { x: x, y: y };
+  }
+  function pressStart(x, y) { unlockAudio(); down = { x: x, y: y }; }
+  function pressEnd(x, y) {
+    if (!down) return;
+    var dx = x - down.x, dy = y - down.y, start = down; down = null;
+    if (!S.active) return;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 36) {        // swipe = one hop
+      clearTimeout(walkTimer);
+      if (Math.abs(dx) > Math.abs(dy)) stepFrog(dx > 0 ? 1 : -1, 0); else stepFrog(0, dy > 0 ? 1 : -1);
+      return;
+    }
+    var c = cellAt(start.x, start.y);
+    if (!c) return;
+    if (c.x === S.frog.x && c.y === S.frog.y) chomp(); else walkTo(c.x, c.y);
+  }
+  if (window.PointerEvent) {
+    boardEl.addEventListener('pointerdown', function (e) { e.preventDefault(); pressStart(e.clientX, e.clientY); });
+    window.addEventListener('pointerup', function (e) { pressEnd(e.clientX, e.clientY); });
+    window.addEventListener('pointercancel', function () { down = null; });
+  } else {
+    boardEl.addEventListener('touchstart', function (e) { e.preventDefault(); var t = e.changedTouches[0]; pressStart(t.clientX, t.clientY); }, { passive: false });
+    boardEl.addEventListener('touchend', function (e) { e.preventDefault(); var t = e.changedTouches[0]; pressEnd(t.clientX, t.clientY); }, { passive: false });
+    boardEl.addEventListener('mousedown', function (e) { pressStart(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', function (e) { pressEnd(e.clientX, e.clientY); });
+  }
+  // stop page scrolling / pinch zoom while playing
+  document.addEventListener('touchmove', function (e) {
+    if (!e.target.closest || !e.target.closest('.overlay')) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.tagName === 'INPUT') return;    // typing a name
+    var k = e.key;
+    if (k === 'ArrowLeft' || k === 'a') stepFrog(-1, 0);
+    else if (k === 'ArrowRight' || k === 'd') stepFrog(1, 0);
+    else if (k === 'ArrowUp' || k === 'w') stepFrog(0, -1);
+    else if (k === 'ArrowDown' || k === 's') stepFrog(0, 1);
+    else if (k === ' ' || k === 'Enter') { if (S.active) { e.preventDefault(); chomp(); } return; }
+    else return;
+    clearTimeout(walkTimer);
+    e.preventDefault();
+  });
+
+  $('chomp').addEventListener('click', function () { unlockAudio(); chomp(); });
+
+  // ---------- menu ----------
+  function refreshMenu() {
+    var bs = $('tableChoices').children, i;
+    for (i = 0; i < bs.length; i++) bs[i].className = (+bs[i].getAttribute('data-n') === settings.maxFactor) ? 'on' : '';
+    bs = $('snakeChoices').children;
+    for (i = 0; i < bs.length; i++) bs[i].className = (+bs[i].getAttribute('data-s') === settings.snakes) ? 'on' : '';
+    fillChars($('charChoices'), false);
+    $('startEmoji').textContent = me().ch;
+    $('starLine').textContent = S.inGame ? '\u00a0 · \u00a0⭐ ' + totalStars + (totalStars === 1 ? ' star' : ' stars') + ' this game' : '';
+    fillBoard($('topBoard'), null, { top: 3 });
+    $('resumeBtn').style.display = S.inGame ? '' : 'none';
+    $('playBtn').textContent = S.inGame ? 'New game' : 'Play';
+  }
+  var resume = null;                     // what to go back to when Continue is tapped
+  function showMenu() {
+    commitName();
+    var info = $('infoScreen').classList.contains('show');
+    if (S.inGame && !S.active && !info) return;      // between screens, ignore the tap
+    resume = S.inGame ? { info: info } : null;
+    S.active = false; stopTimers();
+    $('infoScreen').classList.remove('show');
+    refreshMenu();
+    $('startScreen').classList.add('show');
+  }
+  $('resumeBtn').addEventListener('click', function () {
+    unlockAudio();
+    $('startScreen').classList.remove('show');
+    if (!resume) return;
+    if (resume.info) { renderInfoChars(); $('infoScreen').classList.add('show'); }
+    else { S.active = true; startSnakeTimer(); hint(); }
+  });
+  $('tableChoices').addEventListener('click', function (e) {
+    var n = e.target.getAttribute && e.target.getAttribute('data-n');
+    if (n) { settings.maxFactor = +n; store.set('maxFactor', +n); refreshMenu(); }
+  });
+  $('snakeChoices').addEventListener('click', function (e) {
+    var s = e.target.getAttribute && e.target.getAttribute('data-s');
+    if (s !== null && s !== undefined) { settings.snakes = +s; store.set('snakes', +s); refreshMenu(); }
+  });
+  charTap($('charChoices'), refreshMenu);
+  charTap($('infoChars'), renderInfoChars);
+  $('playBtn').addEventListener('click', function () {
+    unlockAudio();
+    $('startScreen').classList.remove('show');
+    newGame();
+  });
+  $('menuBtn').addEventListener('click', showMenu);
+  $('infoMenu').addEventListener('click', showMenu);
+
+  // ---------- boot ----------
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', function () { setTimeout(layout, 300); });
+  buildBoard();
+  makeLevel(); renderCells(); S.target = 0; renderHud(); refreshMenu(); layout();
+
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+
+  window.__ff = { S: S, settings: settings, chomp: chomp, stepFrog: stepFrog, walkTo: walkTo };   // handy for debugging
+})();
+</script>
+</body>
+</html>
